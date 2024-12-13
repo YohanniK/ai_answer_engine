@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -11,84 +10,13 @@ type Message = {
   content: string;
 };
 
-export default function Home() {
+export default function ChatPage() {
   const router = useRouter();
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>([
     { role: "ai", content: "Hello! How can I help you today?" },
   ]);
   const [isLoading, setIsLoading] = useState(false);
-
-  // const handleSend = async () => {
-  //   if (!message.trim()) return;
-
-  //   // Add user message to the conversation
-  //   const userMessage = { role: "user" as const, content: message };
-  //   const aiMessage = { role: "ai" as const, content: "" };
-  //   setMessages(prev => [...prev, userMessage, aiMessage]);
-  //   setMessage("");
-  //   setIsLoading(true);
-
-  //   try {
-  //     const response = await fetch("/api/chat", {
-  //       method: "POST",
-  //       headers: {
-  //         "Content-Type": "application/json",
-  //       },
-  //       body: JSON.stringify({ message }),
-  //     });
-
-  //     if (!response.ok) {
-  //       throw new Error("Network response was not ok");
-  //     }
-
-  //     // TODO: Handle the response from the chat API to display the AI response in the UI
-  //     if (!response.body) {
-  //       console.log("Response body not found");
-  //       throw new Error("Failed to get response body");
-  //     }
-
-  //     const reader = response.body.getReader();
-  //     if (!reader) {
-  //       console.log("Reader error");
-  //       throw new Error("Failed to get reader from response body");
-  //     }
-
-  //     const decoder = new TextDecoder();
-
-  //     if (reader) {
-  //       while (true) {
-  //         const { done, value } = await reader.read();
-  //         if (done) break;
-  //         const text = decoder.decode(value, { stream: true });
-  //         setMessages(messages => {
-  //           let lastMessage = messages[messages.length - 1];
-  //           let otherMessages = messages.slice(0, messages.length - 1);
-  //           return [
-  //             ...otherMessages,
-  //             { ...lastMessage, content: lastMessage.content + text },
-  //           ];
-  //         });
-  //       }
-  //     }
-  //   } catch (error) {
-  //     console.log(error);
-  //     setMessages(messages => {
-  //       let lastMessage = messages[messages.length - 1];
-  //       let otherMessages = messages.slice(0, messages.length - 1);
-  //       return [
-  //         ...otherMessages,
-  //         {
-  //           ...lastMessage,
-  //           role: "ai" as const,
-  //           content: `I'm sorry, I encountered an error. Please try again later.`,
-  //         },
-  //       ];
-  //     });
-  //   } finally {
-  //     setIsLoading(false);
-  //   }
-  // };
 
   const handleSend = async () => {
     if (!message.trim()) return;
@@ -102,57 +30,39 @@ export default function Home() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          name: message.trim(),
+          message: message.trim(),
           participants: ["ai", "user"],
         }),
       });
-
-      console.log("ChatRoomCreated", response);
 
       if (!response.ok) {
         throw new Error("Network response was not ok");
       }
 
       const data = await response.json();
-      const chatRoomId = data._id;
-
-      console.log("data", data);
-      console.log("chatRoomId", chatRoomId);
+      const { chatRoomId } = data;
 
       if (chatRoomId) {
-        const conversation = await fetch("/api/chat", {
+        router.push(`/chat/${chatRoomId}`);
+
+        await fetch("/api/chat", {
           method: "POST",
           body: JSON.stringify({
-            chatRoomId,
+            chatRoomId: chatRoomId,
             sender: "user",
-            message,
+            message: message,
           }),
         });
-
-        const conversationData = await conversation.json();
-        console.log("Conversation", conversationData);
-
-        router.push(`/chat/${chatRoomId}`);
       }
     } catch (error) {
       console.log(error);
     }
   };
 
-  // TODO: Modify the color schemes, fonts, and UI as needed for a good user experience
-  // Refer to the Tailwind CSS docs here: https://tailwindcss.com/docs/customizing-colors, and here: https://tailwindcss.com/docs/hover-focus-and-other-states
   return (
-    <div className="flex flex-col h-screen bg-gray-900">
-      {/* Header */}
-      <div className="w-full bg-gray-800 border-b border-gray-700 p-4">
-        <div className="max-w-3xl mx-auto">
-          <h1 className="text-xl font-semibold text-white">Chat</h1>
-        </div>
-      </div>
-
-      {/* Messages Container */}
+    <div className="h-screen max-w-full bg-gray-900">
       <div className="flex-1 overflow-y-auto pb-32 pt-4">
-        <div className="max-w-3xl mx-auto px-4">
+        <div className="max-w-4xl mx-auto px-4">
           {messages.map((msg, index) => (
             <div
               key={index}
@@ -206,18 +116,16 @@ export default function Home() {
           )} */}
         </div>
       </div>
-
-      {/* Input Area */}
-      <div className="fixed bottom-0 w-full bg-gray-800 border-t border-gray-700 p-4">
-        <div className="max-w-3xl mx-auto">
-          <div className="flex gap-3 items-center">
+      <div className="fixed bottom-0 w-full max-w-full mx-auto bg-gray-800 border-t border-gray-700 p-4">
+        <div className="max-w-4xl mx-auto flex flex-row flex-grow">
+          <div className="flex gap-3">
             <input
               type="text"
               value={message}
               onChange={e => setMessage(e.target.value)}
               onKeyPress={e => e.key === "Enter" && handleSend()}
               placeholder="Type your message..."
-              className="flex-1 rounded-xl border border-gray-700 bg-gray-900 px-4 py-3 text-gray-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent placeholder-gray-400"
+              className="flex-1 rounded-xl border border-gray-700 bg-gray-900 px-4 py-3 text-gray-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent placeholder-gray-400 ml-0"
             />
             <button
               onClick={handleSend}
@@ -227,6 +135,9 @@ export default function Home() {
               {isLoading ? "Sending..." : "Send"}
             </button>
           </div>
+        </div>
+        <div className="flex bg-red-900">
+          <p>Hello</p>
         </div>
       </div>
     </div>

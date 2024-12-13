@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
+import { use, useEffect, useState } from "react";
 
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -11,133 +11,117 @@ type Message = {
   content: string;
 };
 
-export default function Home() {
-  const router = useRouter();
+export default function ChatRoom() {
+  const { chatRoomId } = useParams();
+
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>([
     { role: "ai", content: "Hello! How can I help you today?" },
   ]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // const handleSend = async () => {
-  //   if (!message.trim()) return;
-
-  //   // Add user message to the conversation
-  //   const userMessage = { role: "user" as const, content: message };
-  //   const aiMessage = { role: "ai" as const, content: "" };
-  //   setMessages(prev => [...prev, userMessage, aiMessage]);
-  //   setMessage("");
-  //   setIsLoading(true);
-
-  //   try {
-  //     const response = await fetch("/api/chat", {
-  //       method: "POST",
-  //       headers: {
-  //         "Content-Type": "application/json",
-  //       },
-  //       body: JSON.stringify({ message }),
-  //     });
-
-  //     if (!response.ok) {
-  //       throw new Error("Network response was not ok");
-  //     }
-
-  //     // TODO: Handle the response from the chat API to display the AI response in the UI
-  //     if (!response.body) {
-  //       console.log("Response body not found");
-  //       throw new Error("Failed to get response body");
-  //     }
-
-  //     const reader = response.body.getReader();
-  //     if (!reader) {
-  //       console.log("Reader error");
-  //       throw new Error("Failed to get reader from response body");
-  //     }
-
-  //     const decoder = new TextDecoder();
-
-  //     if (reader) {
-  //       while (true) {
-  //         const { done, value } = await reader.read();
-  //         if (done) break;
-  //         const text = decoder.decode(value, { stream: true });
-  //         setMessages(messages => {
-  //           let lastMessage = messages[messages.length - 1];
-  //           let otherMessages = messages.slice(0, messages.length - 1);
-  //           return [
-  //             ...otherMessages,
-  //             { ...lastMessage, content: lastMessage.content + text },
-  //           ];
-  //         });
-  //       }
-  //     }
-  //   } catch (error) {
-  //     console.log(error);
-  //     setMessages(messages => {
-  //       let lastMessage = messages[messages.length - 1];
-  //       let otherMessages = messages.slice(0, messages.length - 1);
-  //       return [
-  //         ...otherMessages,
-  //         {
-  //           ...lastMessage,
-  //           role: "ai" as const,
-  //           content: `I'm sorry, I encountered an error. Please try again later.`,
-  //         },
-  //       ];
-  //     });
-  //   } finally {
-  //     setIsLoading(false);
-  //   }
-  // };
-
   const handleSend = async () => {
     if (!message.trim()) return;
 
+    // Add user message to the conversation
+    const userMessage = { role: "user" as const, content: message };
+    const aiMessage = { role: "ai" as const, content: "" };
+    setMessages(prev => [...prev, userMessage, aiMessage]);
+    setMessage("");
     setIsLoading(true);
 
     try {
-      const response = await fetch("/api/chatRooms", {
+      const response = await fetch("/api/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          name: message.trim(),
-          participants: ["ai", "user"],
+          chatRoomId,
+          sender: "user",
+          message,
         }),
       });
-
-      console.log("ChatRoomCreated", response);
 
       if (!response.ok) {
         throw new Error("Network response was not ok");
       }
 
-      const data = await response.json();
-      const chatRoomId = data._id;
+      // TODO: Handle the response from the chat API to display the AI response in the UI
+      if (!response.body) {
+        console.log("Response body not found");
+        throw new Error("Failed to get response body");
+      }
 
-      console.log("data", data);
-      console.log("chatRoomId", chatRoomId);
+      const reader = response.body.getReader();
+      if (!reader) {
+        console.log("Reader error");
+        throw new Error("Failed to get reader from response body");
+      }
 
-      if (chatRoomId) {
-        const conversation = await fetch("/api/chat", {
-          method: "POST",
-          body: JSON.stringify({
-            chatRoomId,
-            sender: "user",
-            message,
-          }),
-        });
+      const decoder = new TextDecoder();
 
-        const conversationData = await conversation.json();
-        console.log("Conversation", conversationData);
-
-        router.push(`/chat/${chatRoomId}`);
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const text = decoder.decode(value, { stream: true });
+          setMessages(messages => {
+            let lastMessage = messages[messages.length - 1];
+            let otherMessages = messages.slice(0, messages.length - 1);
+            return [
+              ...otherMessages,
+              { ...lastMessage, content: lastMessage.content + text },
+            ];
+          });
+        }
       }
     } catch (error) {
       console.log(error);
+      setMessages(messages => {
+        let lastMessage = messages[messages.length - 1];
+        let otherMessages = messages.slice(0, messages.length - 1);
+        return [
+          ...otherMessages,
+          {
+            ...lastMessage,
+            role: "ai" as const,
+            content: `I'm sorry, I encountered an error. Please try again later.`,
+          },
+        ];
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    const fetchMessages = async () => {
+      try {
+        const response = await fetch(`/api/chat/${chatRoomId}`, {
+          method: "GET",
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch chat history");
+        }
+
+        const data = await response.json();
+        console.log("useEffect", data);
+        const formattedMessages = data.map((d: any) => ({
+          role: d.sender,
+          content: d.message,
+        }));
+        setMessages(formattedMessages);
+      } catch (error) {
+        console.log("Error Fetching Messages using chatRoomId", error);
+      }
+    };
+
+    if (chatRoomId) {
+      fetchMessages();
+    }
+  }, [chatRoomId]);
 
   // TODO: Modify the color schemes, fonts, and UI as needed for a good user experience
   // Refer to the Tailwind CSS docs here: https://tailwindcss.com/docs/customizing-colors, and here: https://tailwindcss.com/docs/hover-focus-and-other-states
